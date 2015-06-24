@@ -148,8 +148,8 @@ static void *thrdpool_start_routine(void *arg)
 
 	/* cleanup thread context */
 	destroy_wait_entry(&thrd->ctx.we);
-	--(thrd->pool->n_threads);
 	mutex_lock(&pool->we.mtx);
+	--(thrd->pool->n_threads);
 	cond_signal(&pool->we.cv);
 	mutex_unlock(&pool->we.mtx);
 	mem_free(thrd, 0);
