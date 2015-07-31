@@ -453,7 +453,7 @@ struct svc_req {
 __BEGIN_DECLS
 extern struct work_pool svc_work_pool;
 
-void svc_init(struct svc_init_params *);
+bool svc_init(struct svc_init_params *);
 __END_DECLS
 /*
  * Service shutdown (optional).
