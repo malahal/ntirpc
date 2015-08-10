@@ -193,18 +193,28 @@ svc_ioq_callback(struct work_pool_entry *wpe)
 	SVCXPRT *xprt = (SVCXPRT *)wpe->arg;
 	struct poolq_entry *have;
 	struct xdr_ioq *xioq;
+	int rc;
 
 	/* qmutex more fine grained than xp_lock */
 	for (;;) {
 		mutex_lock(&xd->shared.ioq.qmutex);
-		have = TAILQ_FIRST(&xd->shared.ioq.qh);
-		if (unlikely(!have)) {
-			xd->shared.active = false;
-			mutex_unlock(&xd->shared.ioq.qmutex);
-			SVC_RELEASE(xprt, SVC_RELEASE_FLAG_NONE);
-			return;
+		while (unlikely(xd->shared.ioq.qcount == 0)) {
+			struct timespec timeout;
+
+			timeout.tv_sec = time(NULL) + 1;
+			timeout.tv_nsec = 0;
+			rc = pthread_cond_timedwait(&xd->shared.cond,
+						     &xd->shared.ioq.qmutex,
+						     &timeout);
+			if (rc == ETIMEDOUT && xd->shared.ioq.qcount == 0) {
+				xd->shared.active = false;
+				mutex_unlock(&xd->shared.ioq.qmutex);
+				SVC_RELEASE(xprt, SVC_RELEASE_FLAG_NONE);
+				return;
+			}
 		}
 
+		have = TAILQ_FIRST(&xd->shared.ioq.qh);
 		TAILQ_REMOVE(&xd->shared.ioq.qh, have, q);
 		(xd->shared.ioq.qcount)--;
 		/* do i/o unlocked */
@@ -245,6 +255,10 @@ svc_ioq_append(SVCXPRT *xprt, struct x_vc_data *xd, XDR *xdrs)
 		SVC_REF(xprt, SVC_REF_FLAG_NONE);
 		work_pool_submit(&svc_work_pool, &xd->wpe);
 	} else {
+		/* wake up if a thread is sleeping */
+		if (xd->shared.ioq.qcount == 1) { /* empty Q prior to this */
+			pthread_cond_signal(&xd->shared.cond);
+		}
 		/* queuing multiple output requests for worker efficiency */
 		mutex_unlock(&xd->shared.ioq.qmutex);
 	}

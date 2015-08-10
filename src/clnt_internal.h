@@ -235,6 +235,7 @@ struct x_vc_data {
 	struct {
 		struct poolq_head ioq;
 		bool active;
+		pthread_cond_t cond;
 		bool nonblock;
 		u_int sendsz;
 		u_int recvsz;
@@ -252,6 +253,9 @@ static inline struct x_vc_data *
 alloc_x_vc_data(void)
 {
 	struct x_vc_data *xd = mem_zalloc(sizeof(struct x_vc_data));
+
+	pthread_mutex_init(&xd->shared.ioq.qmutex, NULL);
+	pthread_cond_init(&xd->shared.cond, NULL);
 	TAILQ_INIT(&xd->shared.ioq.qh);
 	return (xd);
 }
@@ -259,6 +263,8 @@ alloc_x_vc_data(void)
 static inline void
 free_x_vc_data(struct x_vc_data *xd)
 {
+	pthread_mutex_destroy(&xd->shared.ioq.qmutex);
+	pthread_cond_destroy(&xd->shared.cond);
 	mem_free(xd, sizeof(struct x_vc_data));
 }
 
