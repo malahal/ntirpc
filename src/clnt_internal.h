@@ -240,11 +240,9 @@ struct x_vc_data {
 #define NUM_IOQS    32
 	struct {
 		struct poolq_head ioq[NUM_IOQS];
-		uint32_t ioqXcount; /* active */
-		uint32_t ioqLcount; /* cumulative for lane computation */
-		pthread_mutex_t qmutex;
-		pthread_cond_t qcond;
 		bool active;
+		uint32_t ioqXcount; /* active */
+		uint32_t ioqLcount; /* cumulative for lane */
 		bool nonblock;
 		u_int sendsz;
 		u_int recvsz;
@@ -268,8 +266,6 @@ alloc_x_vc_data(void)
 		pthread_mutex_init(&xd->shared.ioq[lane].qmutex, NULL);
 		TAILQ_INIT(&xd->shared.ioq[lane].qh);
 	}
-	pthread_mutex_init(&xd->shared.qmutex, NULL);
-	pthread_cond_init(&xd->shared.qcond, NULL);
 	return (xd);
 }
 
@@ -282,8 +278,6 @@ free_x_vc_data(struct x_vc_data *xd)
 		pthread_mutex_destroy(&xd->shared.ioq[lane].qmutex);
 		/* Should we free or assert list empty here ??? */
 	}
-	pthread_mutex_destroy(&xd->shared.qmutex);
-	pthread_cond_destroy(&xd->shared.qcond);
 	mem_free(xd, sizeof(struct x_vc_data));
 }
 
