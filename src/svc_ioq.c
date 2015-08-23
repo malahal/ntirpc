@@ -197,8 +197,7 @@ svc_ioq_callback(struct work_pool_entry *wpe)
 
 	/* qmutex more fine grained than xp_lock */
 	for (;;) {
-		for (lane = 0; lane < NUM_IOQS && xd->shared.ioqXcount != 0;
-				lane++) {
+		for (lane = 0; lane < NUM_IOQS; lane++) {
 			have = TAILQ_FIRST(&xd->shared.ioq[lane].qh);
 			if (!have)
 				continue;
@@ -226,8 +225,6 @@ svc_ioq_callback(struct work_pool_entry *wpe)
 				(xprt->xp_flags & SVC_XPRT_FLAG_DESTROYED)) {
 			return;
 		}
-
-		thread_delay_ms(5);
 	}
 
 	return;
