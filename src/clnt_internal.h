@@ -262,13 +262,15 @@ static inline struct x_vc_data *
 alloc_x_vc_data(void)
 {
 	int lane;
+	pthread_mutexattr_t attr;
 	struct x_vc_data *xd = mem_zalloc(sizeof(struct x_vc_data));
 
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ADAPTIVE_NP);
 	for (lane = 0; lane < NUM_IOQS; lane++) {
-		pthread_mutex_init(&xd->shared.ioq[lane].qmutex, NULL);
+		pthread_mutex_init(&xd->shared.ioq[lane].qmutex, &attr);
 		TAILQ_INIT(&xd->shared.ioq[lane].qh);
 	}
-	pthread_mutex_init(&xd->shared.qmutex, NULL);
+	pthread_mutex_init(&xd->shared.qmutex, &attr);
 	pthread_cond_init(&xd->shared.qcond, NULL);
 	return (xd);
 }

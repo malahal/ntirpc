@@ -71,8 +71,11 @@ poolq_head_destroy(struct poolq_head *qh)
 static inline void
 poolq_head_setup(struct poolq_head *qh)
 {
+	pthread_mutexattr_t attr;
+
 	TAILQ_INIT(&qh->qh);
-	pthread_mutex_init(&qh->qmutex, NULL);
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ADAPTIVE_NP);
+	pthread_mutex_init(&qh->qmutex, &attr);
 	qh->qcount = 0;
 }
 
