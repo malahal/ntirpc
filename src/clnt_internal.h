@@ -237,7 +237,7 @@ struct x_vc_data {
 		struct timespec last_recv;	/* XXX move to shared? */
 		int32_t maxrec;
 	} sx;
-#define NUM_IOQS    32
+#define NUM_IOQS    256
 	struct {
 		struct poolq_head ioq[NUM_IOQS];
 		uint32_t ioqXcount; /* active */

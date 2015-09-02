@@ -223,15 +223,17 @@ svc_ioq_callback(struct work_pool_entry *wpe)
 		}
 
 		mutex_lock(&xd->shared.qmutex);
-		while (xd->shared.ioqXcount == 0) {
+		while (atomic_fetch_uint32_t(&xd->shared.ioqXcount) == 0) {
 			struct timespec timeout;
 
-			timeout.tv_sec = time(NULL) + 1;
-			timeout.tv_nsec = 0;
+			clock_gettime(CLOCK_REALTIME_FAST, &timeout);
+			timeout.tv_sec += 5;
 			rc = pthread_cond_timedwait(&xd->shared.qcond,
 						    &xd->shared.qmutex,
 						    &timeout);
-			if (rc == ETIMEDOUT && xd->shared.ioqXcount == 0) {
+			if (rc == ETIMEDOUT &&
+				atomic_fetch_uint32_t(&xd->shared.ioqXcount)
+					== 0) {
 				xd->shared.active = false;
 				mutex_unlock(&xd->shared.qmutex);
 				SVC_RELEASE(xprt, SVC_RELEASE_FLAG_NONE);
@@ -267,8 +269,8 @@ svc_ioq_append(SVCXPRT *xprt, struct x_vc_data *xd, XDR *xdrs)
 		 */
 		mutex_lock(&xd->shared.qmutex);
 		if (unlikely(!xd->shared.active)) {
-			mutex_unlock(&xd->shared.qmutex);
 			xd->shared.active = true; /* for good! */
+			mutex_unlock(&xd->shared.qmutex);
 			xd->wpe.fun = svc_ioq_callback;
 			xd->wpe.arg = xprt;
 			SVC_REF(xprt, SVC_REF_FLAG_NONE);
