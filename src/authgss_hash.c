@@ -258,6 +258,7 @@ void authgss_ctx_gc_idle(void)
 
 	cond_init_authgss_hash();
 
+	__warnx(TIRPC_DEBUG_FLAG_RPCSEC_GSS, "entering %s()", __func__);
 	for (ix = 0, part = IDLE_NEXT(); ix < authgss_hash_st.xt.npart;
 	     ++ix, part = IDLE_NEXT()) {
 		xp = &(authgss_hash_st.xt.tree[part]);
@@ -269,7 +270,13 @@ void authgss_ctx_gc_idle(void)
 		if (!gd)
 			goto next_t;
 
-		if (unlikely((authgss_hash_st.size > __svc_params->gss.max_gc)
+		__warnx(TIRPC_DEBUG_FLAG_RPCSEC_GSS,
+			"size:%d, max_gc:%d, axpgen:%d, gdgen:%d, idel_gen:%d\n", authgss_hash_st.size,
+			__svc_params->gss.max_gc,
+			axp->gen, gd->gen,
+			__svc_params->gss.max_idle_gen);
+		if (unlikely(gd->gen > 4000 ||
+			(authgss_hash_st.size > __svc_params->gss.max_gc)
 			     ||
 			     ((abs(axp->gen - gd->gen) >
 			       __svc_params->gss.max_idle_gen))
