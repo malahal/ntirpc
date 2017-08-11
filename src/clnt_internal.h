@@ -167,9 +167,14 @@ enum CX_TYPE
 #define X_VC_DATA_FLAG_NONE             0x0000
 #define X_VC_DATA_FLAG_SVC_DESTROYED    0x0001
 
+struct gfd {
+	int fd_fd;
+	int fd_gen;
+};
+
 /* new unified state */
 struct rpc_dplx_rec {
-	int fd_k;
+	struct gfd fd_k;
 #if 0
 	mutex_t mtx;
 #else

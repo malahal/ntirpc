@@ -363,7 +363,7 @@ svc_fd_ncreate2(int fd, u_int sendsize, u_int recvsize, u_int flags)
 }
 
 static SVCXPRT *
-makefd_xprt(int fd, u_int sendsz, u_int recvsz, bool *allocated)
+makefd_xprt(int fd, uint64_t fd_gen, u_int sendsz, u_int recvsz, bool *allocated)
 {
 	SVCXPRT *xprt = NULL;
 	struct x_vc_data *xd = NULL;
@@ -384,7 +384,7 @@ makefd_xprt(int fd, u_int sendsz, u_int recvsz, bool *allocated)
 	}
 
 	/* atomically find or create shared fd state */
-	rec = rpc_dplx_lookup_rec(fd, RPC_DPLX_LKP_IFLAG_LOCKREC, &oflags);
+	rec = rpc_dplx_lookup_rec(fd_gen, RPC_DPLX_LKP_IFLAG_LOCKREC, &oflags);
 	if (!rec) {
 		__warnx(TIRPC_DEBUG_FLAG_SVC_VC,
 			"svc_vc: makefd_xprt: rpc_dplx_lookup_rec failed");
@@ -474,6 +474,7 @@ makefd_xprt(int fd, u_int sendsz, u_int recvsz, bool *allocated)
 	mutex_init(&xprt->xp_auth_lock, NULL);
 	xprt->xp_refs = 1;
 	xprt->xp_fd = fd;
+	xprt->fd_gen = fd_gen;
 
 	/* the SVCXPRT created in svc_vc_create accepts new connections
 	 * in its xp_recv op, the rendezvous_request method, but xprt is
