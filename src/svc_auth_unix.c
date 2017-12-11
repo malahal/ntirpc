@@ -41,6 +41,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <execinfo.h>
 
 #include <rpc/rpc.h>
 #include <rpc/svc.h>
@@ -85,6 +86,7 @@ _svcauth_unix(struct svc_req *req, struct rpc_msg *msg)
 		str_len = (size_t) IXDR_GET_U_INT32(buf);
 		if (str_len > MAX_MACHINE_NAME) {
 			stat = AUTH_BADCRED;
+      __warnx(TIRPC_DEBUG_FLAG_AUTH,"Machine name more than its length");
 			goto done;
 		}
 		memmove(aup->aup_machname, buf, str_len);
@@ -96,6 +98,7 @@ _svcauth_unix(struct svc_req *req, struct rpc_msg *msg)
 		gid_len = (size_t) IXDR_GET_U_INT32(buf);
 		if (gid_len > NGRPS) {
 			stat = AUTH_BADCRED;
+      __warnx(TIRPC_DEBUG_FLAG_AUTH,"Gids more than 16");
 			goto done;
 		}
 		aup->aup_len = gid_len;
@@ -115,6 +118,7 @@ _svcauth_unix(struct svc_req *req, struct rpc_msg *msg)
 			goto done;
 		}
 	} else if (!xdr_authunix_parms(&xdrs, aup)) {
+    __warnx(TIRPC_DEBUG_FLAG_AUTH,"Buffer not aligned %p", &xdrs);
 		xdrs.x_op = XDR_FREE;
 		(void)xdr_authunix_parms(&xdrs, aup);
 		stat = AUTH_BADCRED;
@@ -132,6 +136,21 @@ _svcauth_unix(struct svc_req *req, struct rpc_msg *msg)
 	}
 	stat = AUTH_OK;
  done:
+  if (stat != AUTH_OK) {
+    void *buffer[32];
+    char **traces;
+    int i, nlines;
+
+    nlines = backtrace(buffer, 32);
+    traces = backtrace_symbols(buffer, nlines);
+
+    if (traces) {
+      for (i = 0; i < nlines; i++) {
+        __warnx(TIRPC_DEBUG_FLAG_AUTH, "%s", traces[i]);
+      }
+      free(traces);
+    }
+  }
 	XDR_DESTROY(&xdrs);
 
 	return (stat);
