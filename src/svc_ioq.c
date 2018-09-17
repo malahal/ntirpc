@@ -66,51 +66,6 @@
 #include <misc/opr.h>
 #include "svc_ioq.h"
 
-/* Send queues, configurable using RPC_Ioq_ThrdMax
- *
- * Ideally, these would be some variant of weighted fair queuing.  Currently,
- * assuming supplied by underlying OS.
- *
- * The assigned thread should have affinity for the interface.  Therefore, the
- * first thread arriving for each interface is used for all subsequent work,
- * until the interface is idle.  This assumes that the output interface is
- * closely associated with the input interface.
- *
- * Note that this is a fixed size list of interfaces.  In most cases,
- * many of these entries will be unused.
- *
- * For efficiency, a mask is applied to the ifindex, possibly causing overlap of
- * multiple interfaces.  The size is selected to be larger than expected number
- * of concurrently active interfaces.  Size must be a power of 2 for mask.
- */
-static int num_send_queues; /* must be a power of 2 */
-static struct poolq_head *ioq_ifqh;
-
-static inline int
-svc_ioq_mask(int fd)
-{
-	return fd & (num_send_queues - 1); /* num_send_queues is a power of 2 */
-}
-
-void
-svc_ioq_init(void)
-{
-	struct poolq_head *ifph;
-	int i;
-
-	/* Make num_send_queues a power of 2 */
-	num_send_queues = 2;
-	while (num_send_queues < __svc_params->ioq.thrd_max)
-		num_send_queues <<= 1;
-
-	ioq_ifqh = mem_calloc(num_send_queues, sizeof(struct poolq_head));
-	for (i = 0, ifph = &ioq_ifqh[0]; i < num_send_queues; ifph++, i++) {
-		ifph->qcount = 0;
-		TAILQ_INIT(&ifph->qh);
-		mutex_init(&ifph->qmutex, NULL);
-	}
-}
-
 static inline void
 cfconn_set_dead(SVCXPRT *xprt)
 {
@@ -331,7 +286,7 @@ svc_ioq_write_callback(struct work_pool_entry *wpe)
 {
 	struct xdr_ioq *xioq = opr_containerof(wpe, struct xdr_ioq, ioq_wpe);
 	SVCXPRT *xprt = (SVCXPRT *)xioq->xdrs[0].x_lib[1];
-	struct poolq_head *ifph = &ioq_ifqh[svc_ioq_mask(xprt->xp_fd)];
+	struct poolq_head *ifph = &xprt->sendq;
 
 	svc_ioq_write(xprt, xioq, ifph);
 }
@@ -339,7 +294,7 @@ svc_ioq_write_callback(struct work_pool_entry *wpe)
 void
 svc_ioq_write_now(SVCXPRT *xprt, struct xdr_ioq *xioq)
 {
-	struct poolq_head *ifph = &ioq_ifqh[svc_ioq_mask(xprt->xp_fd)];
+	struct poolq_head *ifph = &xprt->sendq;
 
 	SVC_REF(xprt, SVC_REF_FLAG_NONE);
 	now(&xioq->start_time);
@@ -369,7 +324,7 @@ svc_ioq_write_now(SVCXPRT *xprt, struct xdr_ioq *xioq)
 void
 svc_ioq_write_submit(SVCXPRT *xprt, struct xdr_ioq *xioq)
 {
-	struct poolq_head *ifph = &ioq_ifqh[svc_ioq_mask(xprt->xp_fd)];
+	struct poolq_head *ifph = &xprt->sendq;
 
 	SVC_REF(xprt, SVC_REF_FLAG_NONE);
 	now(&xioq->start_time);

@@ -77,6 +77,7 @@ static inline void
 rpc_dplx_rec_init(struct rpc_dplx_rec *rec)
 {
 	rpc_dplx_lock_init(&rec->recv.lock);
+	poolq_head_setup(&rec->xprt.sendq);
 }
 
 static inline void

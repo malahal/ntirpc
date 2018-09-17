@@ -125,6 +125,8 @@ svc_rdma_ncreate(void *arg, const u_int sendsize, const u_int recvsize,
 		goto freedata;
 	}
 
+	poolq_head_setup(&xprt->xprt.sendq);
+
 	return (&xprt->xprt);
 
 freedata:

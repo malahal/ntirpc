@@ -279,6 +279,8 @@ typedef struct rpc_svcxprt {
 
 	uint16_t xp_flags;	/* flags */
 
+	struct poolq_head sendq;
+
 	/*
 	 * union of event processor types
 	 */

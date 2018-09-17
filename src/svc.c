@@ -188,8 +188,6 @@ svc_init(svc_init_params *params)
 	else
 		__svc_params->ioq.thrd_max = 200;
 
-	/* uses ioq.thrd_max */
-	svc_ioq_init();
 	if (svc_work_pool_init()) {
 		mutex_unlock(&__svc_params->mtx);
 		return false;
