@@ -164,6 +164,23 @@ static bool realloc_stream(RECSTREAM *, int);
  * write respectively.   They are like the system
  * calls expect that they take an opaque handle rather than an fd.
  */
+static uint64_t nrecs;
+static RECSTREAM *
+rec_alloc(size_t n)
+{
+	RECSTREAM *rstrm = mem_alloc(n);
+	atomic_inc_uint64_t(&nrecs);
+	__ntirpc_pkg_params.warnx("rec_free: nrecs=%llu", nrecs);
+	return rstrm;
+}
+void
+rec_free(RECSTREAM *rstrm, size_t n)
+{
+	free(rstrm);
+	atomic_dec_uint64_t(&nrecs);
+	__ntirpc_pkg_params.warnx("rec_free: nrecs=%llu", nrecs);
+}
+
 void
 xdrrec_create(XDR *xdrs, u_int sendsize, u_int recvsize, void *tcp_handle,
 	      /* like read, but pass it a tcp_handle, not sock */
@@ -171,7 +188,7 @@ xdrrec_create(XDR *xdrs, u_int sendsize, u_int recvsize, void *tcp_handle,
 	      /* like write, but pass it a tcp_handle, not sock */
 	      int (*writeit) (XDR *, void *, void *, int))
 {
-	RECSTREAM *rstrm = mem_alloc(sizeof(RECSTREAM));
+	RECSTREAM *rstrm = rec_alloc(sizeof(RECSTREAM));
 
 	if (rstrm == NULL) {
 		__warnx(TIRPC_DEBUG_FLAG_XDRREC,
@@ -187,7 +204,7 @@ xdrrec_create(XDR *xdrs, u_int sendsize, u_int recvsize, void *tcp_handle,
 	if (rstrm->out_base == NULL) {
 		__warnx(TIRPC_DEBUG_FLAG_XDRREC,
 			"xdrrec_create: out of memory");
-		mem_free(rstrm, sizeof(RECSTREAM));
+		rec_free(rstrm, sizeof(RECSTREAM));
 		return;
 	}
 	rstrm->recvsize = recvsize = fix_buf_size(recvsize);
@@ -196,7 +213,7 @@ xdrrec_create(XDR *xdrs, u_int sendsize, u_int recvsize, void *tcp_handle,
 		__warnx(TIRPC_DEBUG_FLAG_XDRREC,
 			"xdrrec_create: out of memory");
 		mem_free(rstrm->out_base, sendsize);
-		mem_free(rstrm, sizeof(RECSTREAM));
+		rec_free(rstrm, sizeof(RECSTREAM));
 		return;
 	}
 	/*
@@ -427,7 +444,7 @@ xdrrec_destroy(XDR *xdrs)
 
 	mem_free(rstrm->out_base, rstrm->sendsize);
 	mem_free(rstrm->in_base, rstrm->recvsize);
-	mem_free(rstrm, sizeof(RECSTREAM));
+	rec_free(rstrm, sizeof(RECSTREAM));
 }
 
 /*
