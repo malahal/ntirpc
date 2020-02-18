@@ -389,8 +389,7 @@ svc_xprt_shutdown()
 void
 svc_xprt_trace(SVCXPRT *xprt, const char *func, const char *tag, const int line)
 {
-	__warnx(TIRPC_DEBUG_FLAG_REFCNT,
-		"%s() %p fd %d xp_refcnt %" PRId32
+	__ntirpc_pkg_params.warnx_("%s() %p fd %d xp_refcnt %" PRId32
 		" af %u port %u @%s:%d",
 		func, xprt, xprt->xp_fd, xprt->xp_refcnt,
 		xprt->xp_remote.ss.ss_family,

@@ -378,10 +378,11 @@ __END_DECLS
 static inline void svc_ref_it(SVCXPRT *xprt, u_int flags,
 			      const char *tag, const int line)
 {
-#ifdef USE_LTTNG_NTIRPC
-	int32_t refs =
-#endif /* USE_LTTNG_NTIRPC */
-		atomic_inc_int32_t(&xprt->xp_refcnt);
+	int32_t refs = atomic_inc_int32_t(&xprt->xp_refcnt);
+
+	if (refs == 1) {
+		svc_xprt_trace(xprt, __func__, tag, line);
+	}
 
 	if (flags & SVC_REF_FLAG_LOCKED)  {
 		/* unlock before warning trace */
