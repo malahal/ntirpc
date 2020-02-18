@@ -732,18 +732,6 @@ svc_rqst_xprt_unregister(SVCXPRT *xprt, uint32_t flags)
 	struct rpc_dplx_rec *rec = REC_XPRT(xprt);
 	struct svc_rqst_rec *sr_rec = (struct svc_rqst_rec *)rec->ev_p;
 
-	/* Remove from the transport list here (and only here)
-	 * before clearing the registration to ensure other
-	 * lookups cannot re-use this transport.
-	 */
-	if (!(flags & RPC_DPLX_LOCKED))
-		rpc_dplx_rli(rec);
-
-	svc_xprt_clear(xprt);
-
-	if (!(flags & RPC_DPLX_LOCKED))
-		rpc_dplx_rui(rec);
-
 	if (!sr_rec) {
 		/* not currently registered */
 		return;

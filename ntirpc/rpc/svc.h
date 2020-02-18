@@ -443,6 +443,7 @@ static inline void svc_release_it(SVCXPRT *xprt, u_int flags,
  * Idempotent SVC_XPRT_FLAG_DESTROYED (bit SVC_XPRT_FLAG_DESTROYING)
  * indicates that more references should not be taken.
  */
+extern void svc_xprt_clear(SVCXPRT *xprt);
 static inline void svc_destroy_it(SVCXPRT *xprt,
 				  const char *tag, const int line)
 {
@@ -455,6 +456,17 @@ static inline void svc_destroy_it(SVCXPRT *xprt,
 		/* previously set, do nothing */
 		return;
 	}
+
+	/* Remove from the hash table and then decrement the refcount
+	 * via svc_release_it.  This ensures that zero refcount xprts
+	 * will not be in RBT hash and we will not have refcount going
+	 * up from zero.
+	 *
+	 * TODO: do we need rpc_dplx_rli lock?
+	 */
+	//rpc_dplx_rli(REC_XPRT(xprt));
+	svc_xprt_clear(xprt);
+	//rpc_dplx_rui(REC_XPRT(xprt));
 
 	svc_release_it(xprt, SVC_RELEASE_FLAG_NONE, tag, line);
 }
