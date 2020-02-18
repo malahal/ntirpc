@@ -143,6 +143,7 @@ svc_xprt_lookup(int fd, svc_xprt_setup_t setup)
 	struct opr_rbtree_node *nv;
 	SVCXPRT *xprt = NULL;
 	uint16_t xp_flags;
+	int32_t refcount;
 
 	if (svc_xprt_init_failure())
 		return (NULL);
@@ -196,8 +197,26 @@ svc_xprt_lookup(int fd, svc_xprt_setup_t setup)
 	rec = opr_containerof(nv, struct rpc_dplx_rec, fd_node);
 	xprt = &rec->xprt;
 
-	/* lookup reference before unlock ensures shutdown cannot release */
-	SVC_REF(xprt, SVC_REF_FLAG_NONE);
+	/* lookup reference before unlock ensures shutdown cannot release
+	 *
+	 * The current implementation makes it possible to have 0
+	 * refcount xprts in the tree. The code would be easier if
+	 * destroy removes from the tree before decrementing the
+	 * refcount avoiding this possibility. It needs some code
+	 * re-org but easier to implement in the long run!
+	 *
+	 * For now, manually increment the refcnt and see if it indeed
+	 * was zero (1 now!). If so, bailout under tree lock as the xprt
+	 * might be freed as soon as we unlock!
+	 *
+	 * TODO: Need LTTng trace messages for these manual refcounts
+	 */
+	refcount = atomic_inc_int32_t(&xprt->xp_refcnt);
+	if (refcount == 1) { /* proces of getting destroyed */
+		atomic_dec_int32_t(&xprt->xp_refcnt);
+		rwlock_unlock(&t->lock);
+		return NULL;
+	}
 	rwlock_unlock(&t->lock);
 
 	/* unlocked window here permits shutdown to destroy without release;
