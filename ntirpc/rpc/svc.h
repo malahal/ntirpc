@@ -427,9 +427,12 @@ static inline void svc_release_it(SVCXPRT *xprt, u_int flags,
 
 	if (xp_flags & SVC_XPRT_FLAG_RELEASING) {
 		XPRT_TRACE(xprt, "WARNING! already destroying!", tag, line);
-		return;
+		abort();
 	}
 
+	__ntirpc_pkg_params.warnx_("%s:%p, xprt %p, refcnt: %d, fd: %d\n", __func__,
+		xprt->xp_ops->xp_destroy, xprt,
+		xprt->xp_refcnt, xprt->xp_fd);
 	/* Releasing last reference */
 	(*(xprt)->xp_ops->xp_destroy)(xprt, flags, tag, line);
 }

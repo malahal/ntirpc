@@ -457,12 +457,17 @@ static void
 clnt_vc_destroy(CLIENT *clnt)
 {
 	struct cx_data *cx = CX_DATA(clnt);
+	struct svc_xprt *xprt = &cx->cx_rec->xprt;
 
 	if (cx->cx_rec) {
+		__ntirpc_pkg_params.warnx_("%s, xprt %p, refcnt: %d, fd: %d\n", __func__, xprt,
+				xprt->xp_refcnt, xprt->xp_fd);
 		SVC_RELEASE(&cx->cx_rec->xprt, SVC_RELEASE_FLAG_NONE);
 
 		if (clnt->cl_flags & CLNT_FLAG_LOCAL) {
 			/* Local client; destroy the xprt */
+			__ntirpc_pkg_params.warnx_("%s, xprtLOCAL %p, refcnt: %d, fd: %d\n", __func__, xprt,
+				xprt->xp_refcnt, xprt->xp_fd);
 			SVC_DESTROY(&cx->cx_rec->xprt);
 		}
 	}

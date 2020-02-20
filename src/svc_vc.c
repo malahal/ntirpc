@@ -113,12 +113,33 @@ static void svc_vc_override_ops(SVCXPRT *, SVCXPRT *);
  * original function with flags SVC_CREATE_FLAG_CLOSE.
  *
  */
+static void *myfree(void *arg)
+{
+	sleep(10);
+	free(arg);
+	return NULL;
+}
+
+static void delay_memfree(struct svc_vc_xprt *xd)
+{
+	pthread_attr_t attr;
+	pthread_t id;
+
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+	if (pthread_create(&id, &attr, myfree, xd) != 0) {
+		free(xd);
+	}
+}
+
 static void
 svc_vc_xprt_free(struct svc_vc_xprt *xd)
 {
 	XDR_DESTROY(xd->sx_dr.ioq.xdrs);
 	rpc_dplx_rec_destroy(&xd->sx_dr);
-	mem_free(xd, sizeof(struct svc_vc_xprt));
+	/* delayed to track a bug */
+	delay_memfree(xd);
+	//mem_free(xd, sizeof(struct svc_vc_xprt));
 }
 
 static struct svc_vc_xprt *

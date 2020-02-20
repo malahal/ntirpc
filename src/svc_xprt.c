@@ -174,6 +174,8 @@ svc_xprt_lookup(int fd, svc_xprt_setup_t setup)
 			(*setup)(&xprt); /* zalloc, xp_refcnt = 1 */
 			xprt->xp_fd = fd;
 			xprt->xp_flags = SVC_XPRT_FLAG_INITIAL;
+	__ntirpc_pkg_params.warnx_("%s, xprtNEW %p, refcnt: %d, fd: %d\n", __func__, xprt,
+		xprt->xp_refcnt, xprt->xp_fd);
 
 			/* Get ref for caller */
 			SVC_REF(xprt, SVC_REF_FLAG_NONE);
@@ -211,6 +213,8 @@ svc_xprt_lookup(int fd, svc_xprt_setup_t setup)
 	 *
 	 * TODO: Need LTTng trace messages for these manual refcounts
 	 */
+	__ntirpc_pkg_params.warnx_("%s, xprtOLD %p, refcnt: %d, fd: %d\n", __func__, xprt,
+		xprt->xp_refcnt, xprt->xp_fd);
 	refcount = atomic_inc_int32_t(&xprt->xp_refcnt);
 	if (refcount == 1) { /* proces of getting destroyed */
 		atomic_dec_int32_t(&xprt->xp_refcnt);
