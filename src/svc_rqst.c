@@ -583,6 +583,8 @@ svc_rqst_hook_events(struct rpc_dplx_rec *rec, struct svc_rqst_rec *sr_rec)
 				sr_rec->ev_u.epoll.epoll_fd,
 				sr_rec->sv[0], sr_rec->sv[1]);
 		}
+		/* Get a ref for the epoll loop */
+		SVC_REF(&rec->xprt, SVC_REF_FLAG_NONE);
 		break;
 	}
 #endif
