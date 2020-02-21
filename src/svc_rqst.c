@@ -447,6 +447,9 @@ svc_rqst_unhook_events(struct rpc_dplx_rec *rec, struct svc_rqst_rec *sr_rec)
 				sr_rec, sr_rec->id_k, sr_rec->ev_refcnt,
 				sr_rec->ev_u.epoll.epoll_fd,
 				sr_rec->sv[0], sr_rec->sv[1]);
+			/* Release the hook ref */
+			SVC_RELEASE(&rec->xprt, SVC_RELEASE_FLAG_NONE);
+
 		}
 		break;
 	}
@@ -477,7 +480,6 @@ svc_rqst_rearm_events(SVCXPRT *xprt)
 	if (sr_rec->ev_flags & SVC_RQST_FLAG_SHUTDOWN)
 		return (0);
 
-	SVC_REF(xprt, SVC_REF_FLAG_NONE);
 	rpc_dplx_rli(rec);
 
 	/* assuming success */
@@ -582,6 +584,8 @@ svc_rqst_hook_events(struct rpc_dplx_rec *rec, struct svc_rqst_rec *sr_rec)
 				sr_rec, sr_rec->id_k, sr_rec->ev_refcnt,
 				sr_rec->ev_u.epoll.epoll_fd,
 				sr_rec->sv[0], sr_rec->sv[1]);
+				/* Get a ref for the epoll loop */
+				SVC_REF(&rec->xprt, SVC_REF_FLAG_NONE);
 		}
 		break;
 	}
@@ -769,8 +773,6 @@ svc_rqst_xprt_task(struct work_pool_entry *wpe)
 		(void)SVC_RECV(&rec->xprt);
 	}
 
-	/* If tests fail, log non-fatal "WARNING! already destroying!" */
-	SVC_RELEASE(&rec->xprt, SVC_RELEASE_FLAG_NONE);
 }
 
 /*
