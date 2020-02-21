@@ -459,12 +459,16 @@ clnt_vc_destroy(CLIENT *clnt)
 	struct cx_data *cx = CX_DATA(clnt);
 
 	if (cx->cx_rec) {
-		SVC_RELEASE(&cx->cx_rec->xprt, SVC_RELEASE_FLAG_NONE);
-
+		/* SVC_RELEASE may free the object, so call SVC_DESTROY
+		 * first. SVC_DESTROY() sets up things for eventual
+		 * destruction but SVC_RELEASE may actually free the
+		 * memory!
+		 */
 		if (clnt->cl_flags & CLNT_FLAG_LOCAL) {
 			/* Local client; destroy the xprt */
 			SVC_DESTROY(&cx->cx_rec->xprt);
 		}
+		SVC_RELEASE(&cx->cx_rec->xprt, SVC_RELEASE_FLAG_NONE);
 	}
 	clnt_vc_data_free(CT_DATA(cx));
 }
