@@ -180,14 +180,6 @@ svc_ioq_write(SVCXPRT *xprt, struct xdr_ioq *xioq, struct poolq_head *ifph)
 {
 	struct poolq_entry *have;
 
-	/* ifph is part of xprt, so make sure you don't access
-	 * ifph after releasing xprt! ifph can be removed as the
-	 * function parameter as well.
-	 *
-	 * For now REF xprt for ifph access and UNREF at the return
-	 * of this function.
-	 */
-	SVC_REF(xprt, SVC_REF_FLAG_NONE);
 	for (;;) {
 		int rc = 0;
 
@@ -219,7 +211,6 @@ svc_ioq_write(SVCXPRT *xprt, struct xdr_ioq *xioq, struct poolq_head *ifph)
 		xprt = (SVCXPRT *)xioq->xdrs[0].x_lib[1];
 	}
 	mutex_unlock(&ifph->qmutex);
-	SVC_RELEASE(xprt, SVC_RELEASE_FLAG_NONE);
 }
 
 static void
