@@ -36,7 +36,6 @@
 #include <sys/uio.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <arpa/inet.h>
 
 #include <assert.h>
 #include <err.h>
@@ -47,7 +46,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include <syslog.h>
 #include <misc/timespec.h>
 
 #include <rpc/types.h>
@@ -223,66 +221,15 @@ svc_ioq_write_callback(struct work_pool_entry *wpe)
 	svc_ioq_write(xprt, xioq, ifph);
 }
 
-static void store_sockip(struct sockaddr_storage *addr, char *buf, int len)
-{
-	const char *name = NULL;
-
-	buf[0] = '\0';
-	switch (addr->ss_family) {
-	case AF_INET:
-		name =
-		    inet_ntop(addr->ss_family,
-			      &(((struct sockaddr_in *)addr)->sin_addr), buf,
-			      len);
-		break;
-	case AF_INET6:
-		name =
-		    inet_ntop(addr->ss_family,
-			      &(((struct sockaddr_in6 *)addr)->sin6_addr), buf,
-			      len);
-		break;
-	case AF_LOCAL:
-		strncpy(buf, ((struct sockaddr_un *)addr)->sun_path, len);
-		name = buf;
-	}
-
-	if (name == NULL)
-		strncpy(buf, "<unknown>", len);
-}
-
-static time_t last_time;
 void
 svc_ioq_write_now(SVCXPRT *xprt, struct xdr_ioq *xioq)
 {
 	struct poolq_head *ifph = &xprt->sendq;
-	char ipaddr[INET6_ADDRSTRLEN];
-	time_t ctime;
 
 	SVC_REF(xprt, SVC_REF_FLAG_NONE);
 	mutex_lock(&ifph->qmutex);
 
 	if ((ifph->qcount)++ > 0) {
-		/* If too many responses in the queue, drop them to
-		 * avoid consuming too much memory.  Constant 2K here is
-		 * ok for now, but ideally it should be configurable!
-		 */
-		if (unlikely(ifph->qcount > 2000)) {
-			SVC_RELEASE(xprt, SVC_RELEASE_FLAG_NONE);
-			XDR_DESTROY(xioq->xdrs);
-			--(ifph->qcount);
-			ctime = time(NULL);
-			if (ctime > last_time + 30) { /* More than 30 seconds */
-				last_time = ctime;
-				store_sockip(&xprt->xp_remote.ss, ipaddr,
-					     sizeof(ipaddr));
-				syslog(LOG_ERR,
-				       "nfs-ganesha: NFS client %s is slow, "
-				       "resetting socket 0x%p", ipaddr, xprt);
-			}
-			mutex_unlock(&ifph->qmutex);
-			return;
-		}
-
 		/* queue additional output requests without task switch */
 		TAILQ_INSERT_TAIL(&ifph->qh, &(xioq->ioq_s), q);
 		mutex_unlock(&ifph->qmutex);
@@ -307,34 +254,11 @@ void
 svc_ioq_write_submit(SVCXPRT *xprt, struct xdr_ioq *xioq)
 {
 	struct poolq_head *ifph = &xprt->sendq;
-	char ipaddr[INET6_ADDRSTRLEN];
-	time_t ctime;
 
 	SVC_REF(xprt, SVC_REF_FLAG_NONE);
 	mutex_lock(&ifph->qmutex);
 
 	if ((ifph->qcount)++ > 0) {
-		/* If too many responses in the queue, drop them to
-		 * avoid consuming too much memory.  Constant 2K here is
-		 * ok for now, but ideally it should be configurable!
-		 */
-		if (unlikely(ifph->qcount > 2000)) {
-			SVC_RELEASE(xprt, SVC_RELEASE_FLAG_NONE);
-			XDR_DESTROY(xioq->xdrs);
-			--(ifph->qcount);
-			ctime = time(NULL);
-			if (ctime > last_time + 30) { /* More than 30 seconds */
-				last_time = ctime;
-				store_sockip(&xprt->xp_remote.ss, ipaddr,
-					     sizeof(ipaddr));
-				syslog(LOG_ERR,
-				       "nfs-ganesha: NFS client %s is slow, "
-				       "resetting socket 0x%p", ipaddr, xprt);
-			}
-			mutex_unlock(&ifph->qmutex);
-			return;
-		}
-
 		/* queue additional output requests, they will be handled by
 		 * existing thread without another task switch.
 		 */
