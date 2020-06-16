@@ -42,6 +42,7 @@
 #include <rpc/svc_auth.h>
 #include <rpc/gss_internal.h>
 #include <misc/portable.h>
+#include <assert.h>
 
 static struct svc_auth_ops svc_auth_gss_ops;
 
@@ -230,13 +231,12 @@ svcauth_gss_accept_sec_context(struct svc_req *req,
 	/* ANDROS: change for debugging linux kernel version...
 	   gr->gr_win = 0x00000005;
 	 */
-	gr->gr_win = sizeof(gd->seqmask) * 8;
+	gr->gr_win = gss_seq_win;
 
 	/* Save client info. */
 	gd->sec.mech = mech;
 	gd->sec.qop = GSS_C_QOP_DEFAULT;
 	gd->sec.svc = gc->gc_svc;
-	gd->win = gr->gr_win;
 
 	if (time_rec == GSS_C_INDEFINITE) time_rec = INDEF_EXPIRE;
 	if (time_rec > 10) time_rec -= 5;
@@ -385,6 +385,57 @@ svcauth_gss_nextverf(struct svc_req *req, struct svc_rpc_gss_data *gd,
 	return (true);
 }
 
+static bool
+gss_check_seq_num_valid(struct svc_rpc_gss_data *gd, int seq_num)
+{
+	int bit_to_clear;
+	__warnx(TIRPC_DEBUG_FLAG_RPCSEC_GSS,
+		"seq %d seqlast %d diff %d bit# %d",
+		seq_num, gd->seqlast, seq_num - gd->seqlast,
+		seq_num % gss_seq_win);
+
+	/* If the sequence number is greater than the max we have seen
+	 * previously, we accept it and move the seqlast and window forward.
+	 */
+	if (seq_num >= (gd->seqlast + gss_seq_win)) {
+		memset(gd->win, 0, gss_seq_win/CHAR_BIT);
+		gd->seqlast = seq_num;
+		setbit(gd->win, seq_num % gss_seq_win);
+		return true;
+	}
+	if (seq_num > gd->seqlast) {
+		gd->seqlast++;
+		while (gd->seqlast < seq_num) {
+			bit_to_clear = gd->seqlast % gss_seq_win;
+			if ((bit_to_clear % CHAR_BIT) == 0 &&
+			    (gd->seqlast + CHAR_BIT) <= seq_num) {
+				gd->win[bit_to_clear/CHAR_BIT] = '\0';
+				gd->seqlast += CHAR_BIT;
+			} else {
+				clrbit(gd->win, gd->seqlast % gss_seq_win);
+				gd->seqlast++;
+			}
+		}
+		assert(gd->seqlast == seq_num);
+		setbit(gd->win, seq_num % gss_seq_win);
+		return true;
+	}
+
+	/* if seq_num falls below the window size, drop the request */
+	if (seq_num <= gd->seqlast - gss_seq_win) {
+		return false;
+	}
+
+	/* if we have already seen the seq_num, drop the request */
+	if (isset(gd->win, seq_num % gss_seq_win)) {
+		return false;
+	}
+
+	/* seq num is within valid window, mark it as seen and accept */
+	setbit(gd->win, seq_num % gss_seq_win);
+	return true;
+}
+
 enum auth_stat
 _svcauth_gss(struct svc_req *req, bool *no_dispatch)
 {
@@ -393,7 +444,7 @@ _svcauth_gss(struct svc_req *req, bool *no_dispatch)
 	struct svc_rpc_gss_data *gd = NULL;
 	struct rpc_gss_cred *gc = NULL;
 	struct rpc_gss_init_res gr;
-	int call_stat, offset;
+	int call_stat;
 	OM_uint32 min_stat;
 	enum auth_stat rc = AUTH_OK;
 
@@ -482,20 +533,17 @@ _svcauth_gss(struct svc_req *req, bool *no_dispatch)
 			 rc = RPCSEC_GSS_CREDPROBLEM;
 			 goto gd_free;
 		}
-
-		/* XXX implied serialization?  or just fudging?  advance if
-		 * greater? */
-		offset = gd->seqlast - gc->gc_seq;
-		if (offset < 0) {
-			gd->seqlast = gc->gc_seq;
-			offset = 0 - offset;
-			gd->seqmask <<= offset;
-			offset = 0;
-		} else if (offset >= gd->win || (gd->seqmask & (1 << offset))) {
-			*no_dispatch = true;
+		/* According to rfc2203, sequence numbers should be less than:
+		 * MAXSEQ 0x80000000.
+		 */
+		if (gc->gc_seq < 0) {
+			rc = RPCSEC_GSS_CREDPROBLEM;
 			goto gd_free;
 		}
-		gd->seqmask |= (1 << offset);	/* XXX harmless */
+
+		*no_dispatch = !gss_check_seq_num_valid(gd, gc->gc_seq);
+		if (*no_dispatch)
+			goto gd_free;
 
 		req->rq_ap1 = (void *)(uintptr_t) gc->gc_seq; /* GCC casts */
 		req->rq_clntname = (char *) gd->client_name;
@@ -701,6 +749,7 @@ svcauth_gss_destroy(SVCAUTH *auth)
 	mutex_unlock(&gd->lock);
 	mutex_destroy(&gd->lock);
 
+	mem_free(gd->win, gss_seq_win/CHAR_BIT);
 	mem_free(gd, sizeof(*gd));
 	mem_free(auth, sizeof(*auth));
 
