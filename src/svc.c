@@ -77,7 +77,6 @@
 #endif
 #include "svc_ioq.h"
 
-#define GSS_SEQ_WIN_MIN 128
 extern int gss_seq_win;
 #define SVC_VERSQUIET 0x0001	/* keep quiet about vers mismatch */
 #define version_keepquiet(xp) ((u_long)(xp)->xp_p3 & SVC_VERSQUIET)
@@ -187,13 +186,9 @@ svc_init(svc_init_params *params)
 
 	work_pool_params.thrd_min = __svc_params->ioq.thrd_min + channels;
 
-	if (__svc_params->ioq.thrd_max < GSS_SEQ_WIN_MIN) {
-		gss_seq_win = GSS_SEQ_WIN_MIN;
-	} else {
-		/* Next multiple of CHAR_BIT */
-		gss_seq_win = (__svc_params->ioq.thrd_max + CHAR_BIT - 1) &
+	/* Next multiple of CHAR_BIT */
+	gss_seq_win = ((__svc_params->ioq.thrd_max*4) + CHAR_BIT - 1) &
 				~(CHAR_BIT - 1);
-	}
 
 	work_pool_params.thrd_max = __svc_params->ioq.thrd_max;
 	if (work_pool_params.thrd_max < work_pool_params.thrd_min)
